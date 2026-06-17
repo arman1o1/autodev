@@ -1,0 +1,41 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+.pytest_cache/
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment variables (secrets)
+.env
+.env.*
+
+# Workspace and scratch directories
+workspaces/
+scratch/
+logs/
+benchmarks/results/
+results/
+
+# Agent configs and telemetry logs
+.agents/
+.gemini/
+*.webm
+
+# Application database artifacts
+*.db
+safety_audit.db
+
+# OS and Editor metadata
+.idea/
+.vscode/
+*.swp
+*.swo
+Thumbs.db
+.DS_Store

@@ -1,0 +1,41 @@
+[project]
+name = "autodev"
+version = "0.1.0"
+description = "An autonomous AI agent that resolves GitHub issues end-to-end."
+readme = "README.md"
+authors = [
+    { name = "arman1o1", email = "arman1o1@gmail.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "docker>=7.1.0",
+    "gitpython>=3.1.50",
+    "google-genai>=2.8.0",
+    "pydantic>=2.13.4",
+    "pydantic-settings>=2.14.1",
+    "pygithub>=2.9.1",
+    "rich>=15.0.0",
+    "structlog>=26.1.0",
+    "tree-sitter>=0.25.2",
+    "tree-sitter-python>=0.25.0",
+    "typer>=0.26.7",
+]
+
+[project.scripts]
+autodev = "autodev.cli:app"
+
+[build-system]
+requires = ["uv_build>=0.9.24,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "mypy>=2.1.0",
+    "pytest>=9.0.3",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.15.16",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["workspaces", ".venv", ".git"]
