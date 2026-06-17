@@ -1,5 +1,7 @@
 # autodev
 
+[![CI](https://github.com/arman1o1/autodev/actions/workflows/ci.yml/badge.svg)](https://github.com/arman1o1/autodev/actions/workflows/ci.yml)
+
 An autonomous AI software agent that resolves GitHub issues end-to-end. It takes a GitHub issue URL, explores the codebase, plans the implementation, writes the code, runs tests, self-corrects on failures, and opens a pull request — fully autonomously.
 
 ---
