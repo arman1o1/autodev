@@ -8,8 +8,13 @@ import shutil
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
-import docker
-from docker.errors import ImageNotFound, APIError
+try:
+    import docker
+    from docker.errors import ImageNotFound, APIError
+except ImportError:
+    docker = None
+    ImageNotFound = Exception
+    APIError = Exception
 
 logger = logging.getLogger("autodev.sandbox")
 
@@ -41,14 +46,21 @@ class SandboxManager:
         self.timeout = timeout
         self.allow_local_shell = allow_local_shell
         self.use_docker = True
-        try:
-            self.client = docker.from_env()
-        except Exception as e:
+        if docker is None:
             logger.warning(
-                f"Docker daemon is not running or inaccessible. Falling back to local subprocess sandbox! Error: {e}"
+                "Docker Python SDK is not installed. Falling back to local subprocess sandbox!"
             )
             self.use_docker = False
             self.client = None
+        else:
+            try:
+                self.client = docker.from_env()
+            except Exception as e:
+                logger.warning(
+                    f"Docker daemon is not running or inaccessible. Falling back to local subprocess sandbox! Error: {e}"
+                )
+                self.use_docker = False
+                self.client = None
 
     def __enter__(self):
         return self

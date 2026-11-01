@@ -38,4 +38,5 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 norecursedirs = ["workspaces", ".venv", ".git"]
