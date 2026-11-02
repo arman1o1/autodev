@@ -3,7 +3,7 @@ import logging
 import os
 import re
 from autodev.tools.file_ops import safe_resolve_path
-from autodev.tools.constants import EXCLUDED_DIRS
+from autodev.tools.constants import is_excluded_dir
 
 logger = logging.getLogger("autodev.tools.grep")
 
@@ -31,7 +31,7 @@ def grep_search(
         matches = []
         for root, dirs, files in os.walk(search_root):
             # Exclude common directories
-            dirs[:] = [d for d in dirs if d not in EXCLUDED_DIRS]
+            dirs[:] = [d for d in dirs if not is_excluded_dir(d)]
             for file in files:
                 file_path = os.path.join(root, file)
                 try:

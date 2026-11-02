@@ -30,12 +30,19 @@ class AgentState(BaseModel):
     # Planning
     plan: Optional[str] = None
     plan_approved: bool = False
+    interactive: bool = False
 
     # Execution tracking
     current_mode: Mode = Mode.PLANNING
+    mode_history: List[str] = Field(default_factory=list)
     files_modified: Dict[str, List[EditRecord]] = Field(default_factory=dict)
     attempt_number: int = 1
     max_attempts: int = 3
+
+    # Token & Cost Observability
+    total_prompt_tokens: int = 0
+    total_completion_tokens: int = 0
+    estimated_cost_usd: float = 0.0
 
     # Testing & Debugging
     test_command: Optional[str] = None
@@ -88,8 +95,3 @@ class AgentState(BaseModel):
         self.errors_encountered.append(error)
         if len(self.errors_encountered) > max_history:
             self.errors_encountered = self.errors_encountered[-max_history:]
-
-    @property
-    def interactive(self) -> bool:
-        """Provided for backwards compatibility — check settings.interactive instead."""
-        return False

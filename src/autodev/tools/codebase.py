@@ -3,9 +3,118 @@ import json
 import logging
 import os
 import ast
-from autodev.tools.constants import EXCLUDED_DIRS
+from typing import List, Dict, Any, Optional
+from autodev.tools.constants import is_excluded_dir
+
+try:
+    from tree_sitter import Language, Parser
+    import tree_sitter_python
+
+    _PY_LANG = Language(tree_sitter_python.language())
+    _PARSER = Parser(_PY_LANG)
+    HAS_TREE_SITTER = True
+except Exception:
+    HAS_TREE_SITTER = False
 
 logger = logging.getLogger("autodev.tools.codebase")
+
+
+def _extract_symbols_tree_sitter(code_bytes: bytes) -> List[Dict[str, Any]]:
+    """Extracts symbols using tree-sitter AST parser."""
+    tree = _PARSER.parse(code_bytes)
+
+    def _traverse(node, parent_class: Optional[str] = None) -> List[Dict[str, Any]]:
+        symbols: List[Dict[str, Any]] = []
+        for child in node.children:
+            if child.type == "class_definition":
+                name_node = child.child_by_field_name("name")
+                name = (
+                    name_node.text.decode("utf-8", errors="replace")
+                    if name_node
+                    else "AnonymousClass"
+                )
+                symbols.append(
+                    {
+                        "name": name,
+                        "type": "class",
+                        "line": child.start_point.row + 1,
+                        "parent": parent_class,
+                    }
+                )
+                body_node = child.child_by_field_name("body")
+                if body_node:
+                    symbols.extend(_traverse(body_node, parent_class=name))
+            elif child.type in ("function_definition", "async_function_definition"):
+                name_node = child.child_by_field_name("name")
+                name = (
+                    name_node.text.decode("utf-8", errors="replace")
+                    if name_node
+                    else "anonymous"
+                )
+                symbols.append(
+                    {
+                        "name": name,
+                        "type": "method" if parent_class else "function",
+                        "line": child.start_point.row + 1,
+                        "parent": parent_class,
+                    }
+                )
+                body_node = child.child_by_field_name("body")
+                if body_node:
+                    symbols.extend(_traverse(body_node, parent_class=parent_class))
+        return symbols
+
+    return _traverse(tree.root_node)
+
+
+def _extract_symbols_ast(source_text: str) -> List[Dict[str, Any]]:
+    """Fallback symbol extraction using standard Python ast module."""
+
+    class AstSymbolExtractor(ast.NodeVisitor):
+        def __init__(self):
+            self.symbols: List[Dict[str, Any]] = []
+            self.current_class: Optional[str] = None
+
+        def visit_ClassDef(self, node):
+            self.symbols.append(
+                {
+                    "name": node.name,
+                    "type": "class",
+                    "line": node.lineno,
+                    "parent": self.current_class,
+                }
+            )
+            old_class = self.current_class
+            self.current_class = node.name
+            self.generic_visit(node)
+            self.current_class = old_class
+
+        def visit_FunctionDef(self, node):
+            self.symbols.append(
+                {
+                    "name": node.name,
+                    "type": "method" if self.current_class else "function",
+                    "line": node.lineno,
+                    "parent": self.current_class,
+                }
+            )
+            self.generic_visit(node)
+
+        def visit_AsyncFunctionDef(self, node):
+            self.symbols.append(
+                {
+                    "name": node.name,
+                    "type": "method" if self.current_class else "function",
+                    "line": node.lineno,
+                    "parent": self.current_class,
+                }
+            )
+            self.generic_visit(node)
+
+    tree = ast.parse(source_text)
+    extractor = AstSymbolExtractor()
+    extractor.visit(tree)
+    return extractor.symbols
 
 
 def index_codebase(sandbox, workspace) -> str:
@@ -14,63 +123,34 @@ def index_codebase(sandbox, workspace) -> str:
         index = {}
         search_root = workspace.repo_path
 
-        class SymbolExtractor(ast.NodeVisitor):
-            def __init__(self, file_path):
-                self.file_path = file_path
-                self.symbols = []
-                self.current_class = None
-
-            def visit_ClassDef(self, node):
-                self.symbols.append(
-                    {
-                        "name": node.name,
-                        "type": "class",
-                        "line": node.lineno,
-                        "parent": self.current_class,
-                    }
-                )
-                old_class = self.current_class
-                self.current_class = node.name
-                self.generic_visit(node)
-                self.current_class = old_class
-
-            def visit_FunctionDef(self, node):
-                self.symbols.append(
-                    {
-                        "name": node.name,
-                        "type": "method" if self.current_class else "function",
-                        "line": node.lineno,
-                        "parent": self.current_class,
-                    }
-                )
-                self.generic_visit(node)
-
-            def visit_AsyncFunctionDef(self, node):
-                self.symbols.append(
-                    {
-                        "name": node.name,
-                        "type": "method" if self.current_class else "function",
-                        "line": node.lineno,
-                        "parent": self.current_class,
-                    }
-                )
-                self.generic_visit(node)
-
         for root, dirs, files in os.walk(search_root):
-            dirs[:] = [d for d in dirs if d not in EXCLUDED_DIRS]
+            dirs[:] = [d for d in dirs if not is_excluded_dir(d)]
             for file in files:
                 if not file.endswith(".py"):
                     continue
                 file_path = os.path.join(root, file)
                 try:
-                    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                        tree = ast.parse(f.read())
+                    with open(file_path, "rb") as f:
+                        code_bytes = f.read()
+
+                    symbols = []
+                    if HAS_TREE_SITTER:
+                        try:
+                            symbols = _extract_symbols_tree_sitter(code_bytes)
+                        except Exception as ts_err:
+                            logger.debug(
+                                f"Tree-sitter failed on {file_path}, falling back to ast: {ts_err}"
+                            )
+                            source_text = code_bytes.decode("utf-8", errors="ignore")
+                            symbols = _extract_symbols_ast(source_text)
+                    else:
+                        source_text = code_bytes.decode("utf-8", errors="ignore")
+                        symbols = _extract_symbols_ast(source_text)
+
                     rel_path = os.path.relpath(file_path, workspace.repo_path)
                     normalized_path = os.path.normpath(rel_path).replace("\\", "/")
-                    extractor = SymbolExtractor(normalized_path)
-                    extractor.visit(tree)
-                    if extractor.symbols:
-                        index[normalized_path] = extractor.symbols
+                    if symbols:
+                        index[normalized_path] = symbols
                 except Exception as e:
                     logger.warning(f"Failed to parse {file_path}: {e}")
         return json.dumps(index)
@@ -113,12 +193,11 @@ def index_codebase(sandbox, workspace) -> str:
         "\n"
         "index = {}\n"
         "for root, dirs, files in os.walk('.'):\n"
-        "    dirs[:] = [d for d in dirs if d not in ('.git', '__pycache__', 'node_modules', '.venv', 'build', 'dist')]\n"
+        "    dirs[:] = [d for d in dirs if not d.startswith('.') and not d.endswith('.egg-info') and d not in ('__pycache__', 'node_modules', '.venv', 'build', 'dist')]\n"
         "    for file in files:\n"
         "        if not file.endswith('.py'):\n"
         "            continue\n"
         "        file_path = os.path.join(root, file)\n"
-        "        # Normalize file path representation\n"
         "        normalized_path = os.path.normpath(file_path)\n"
         "        try:\n"
         "            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:\n"

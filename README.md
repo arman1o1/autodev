@@ -8,13 +8,14 @@ An autonomous AI software agent that resolves GitHub issues end-to-end. It takes
 
 ## Key Features
 
-- **Custom ReAct loop**: Built from scratch (no framework dependencies) for complete control and granular observability.
+- **Custom ReAct loop**: Built from scratch (no framework dependencies) for complete control, granular observability, and decomposed phase execution.
 - **Twin-Mode Sandbox**: Executes commands in isolated **Docker containers** by default, with an automatic **native OS Python subprocess fallback** if Docker is unavailable.
-- **Mode-Based Tool Filtering**: Directs the agent's focus by restricting tool access depending on the current phase (Planning, Coding, Testing, Debugging).
-- **Codebase AST Indexer**: Indexes Python files using python's built-in `ast` module to build symbol tables containing class, function, and method definitions with line numbers.
-- **Bulletproof File Edits**: Uses base64-encoded search-and-replace block operations to edit files without shell-escaping bugs or full-file rewrite costs.
-- **Self-Correcting Debug Loop**: Automatically runs project test suites and uses stack trace outputs to recursively diagnose, patch, and re-test code up to a configurable retry budget.
-- **Structured State Object**: Serializes and maintains complete execution history (modified files, test logs, error history, plan details) across LLM turns.
+- **Context Window Management**: Automatically prunes and condenses earlier tool outputs, logs full conversation transcripts to `logs/runs/<id>/transcript.jsonl`, and tracks token usage & dollar costs in real-time.
+- **Structured & Text Transitions**: Supports explicit `declare_transition` tool calls as well as backward-compatible text-based phase advancement.
+- **Tree-Sitter Codebase Indexer**: Leverages Tree-Sitter AST parser with fallback to Python `ast` to map classes, functions, and methods with accurate line numbers.
+- **Bulletproof File Edits**: Uses base64-encoded search-and-replace block operations, line-range reads, and destructive overwrite protection.
+- **Self-Correcting Debug Loop**: Automatically runs project test suites and uses exit codes and stack traces to recursively diagnose, patch, and re-test code up to a configurable retry budget.
+- **Structured State Object**: Serializes and maintains complete execution history (modified files, test logs, token costs, error history, plan details) across LLM turns.
 
 ---
 
@@ -27,7 +28,7 @@ graph TD
     Sandbox --> Indexer[Codebase Indexer]
     Indexer --> Loop[ReAct Loop Orchestrator]
     Loop --> Mode{Current Mode?}
-    Mode -->|PLANNING| LLM[LLM Client<br/>Gemini 3.5 Flash]
+    Mode -->|PLANNING| LLM[LLM Client<br/>Gemini 3.8 Flash]
     Mode -->|CODING| LLM
     Mode -->|TEST/DEBUG| LLM
     LLM --> Type{Response Type?}
@@ -71,7 +72,7 @@ autodev/
 
 | Component | Technology | Rationale |
 |---|---|---|
-| **LLM Provider** | **Gemini 3.5 Flash** / **Gemini 3.1 Pro Preview** | Low latency, large context window, structured JSON schemas |
+| **LLM Provider** | **Gemini 3.8 Flash** / **Gemini 3.1 Pro Preview** | Low latency, large context window, structured JSON schemas |
 | **API SDK** | **google-genai** | Official, lightweight Python SDK |
 | **Sandbox Environment** | **Docker Containers** / **Subprocess** | Secure isolation, flexible local development |
 | **CLI Framework** | **Typer** + **Rich** | Type-safe CLI parameters, styled terminal dashboards |

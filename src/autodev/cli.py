@@ -31,10 +31,13 @@ app = typer.Typer(
 console = Console()
 
 
-def load_settings_or_exit() -> AutodevSettings:
+def load_settings_or_exit(verbose: bool = False) -> AutodevSettings:
     """Helper to load settings or print validation errors and exit."""
     try:
-        return AutodevSettings()
+        settings = AutodevSettings()
+        if verbose:
+            settings.log_level = "DEBUG"
+        return settings
     except ValidationError as e:
         console.print(
             Panel(
@@ -59,9 +62,12 @@ def solve(
         Optional[str],
         typer.Option("--model", "-m", help="Override the Gemini model to use."),
     ] = None,
+    verbose: Annotated[
+        bool, typer.Option("--verbose", "-v", help="Enable verbose debug logging.")
+    ] = False,
 ):
     """Solve a GitHub issue end-to-end autonomously."""
-    settings = load_settings_or_exit()
+    settings = load_settings_or_exit(verbose=verbose)
     if not settings.gemini_api_key:
         console.print(
             "[bold red]Error: GEMINI_API_KEY is required but not configured.[/bold red]"

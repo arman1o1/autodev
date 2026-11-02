@@ -14,12 +14,15 @@ class LLMResponse(BaseModel):
     tool_calls: List[Dict[str, Any]] = []
     model_name: str
     raw_content: Optional[Any] = None
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
 
     model_config = {"arbitrary_types_allowed": True}
 
 
 class GeminiClient:
-    def __init__(self, api_key: str, model_name: str = "gemini-3.5-flash"):
+    def __init__(self, api_key: str, model_name: str = "gemini-3.8-flash"):
         self.model_name = model_name
         try:
             self.client = genai.Client(
@@ -83,11 +86,25 @@ class GeminiClient:
                 if response.candidates and len(response.candidates) > 0:
                     raw_content = response.candidates[0].content
 
+                prompt_tokens = 0
+                completion_tokens = 0
+                total_tokens = 0
+                if getattr(response, "usage_metadata", None):
+                    meta = response.usage_metadata
+                    prompt_tokens = getattr(meta, "prompt_token_count", 0) or 0
+                    completion_tokens = getattr(meta, "candidates_token_count", 0) or 0
+                    total_tokens = getattr(meta, "total_token_count", 0) or (
+                        prompt_tokens + completion_tokens
+                    )
+
                 return LLMResponse(
                     text=text_content,
                     tool_calls=tool_calls,
                     model_name=self.model_name,
                     raw_content=raw_content,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    total_tokens=total_tokens,
                 )
 
             except APIError as e:

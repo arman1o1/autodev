@@ -12,7 +12,7 @@ class AutodevSettings(BaseSettings):
 
     # API Keys & Credentials
     gemini_api_key: Optional[str] = Field(None, validation_alias="GEMINI_API_KEY")
-    gemini_model: str = Field("gemini-3.5-flash", validation_alias="GEMINI_MODEL")
+    gemini_model: str = Field("gemini-3.8-flash", validation_alias="GEMINI_MODEL")
     github_token: Optional[str] = Field(None, validation_alias="GITHUB_TOKEN")
 
     # Agent / Execution Settings
@@ -36,6 +36,10 @@ class AutodevSettings(BaseSettings):
         3,
         description="Number of consecutive identical tool call batches before triggering a stall warning",
     )
+    max_context_tokens: int = Field(
+        80000,
+        description="Threshold of estimated tokens before pruning or summarizing context",
+    )
 
     # Sandbox / Security Settings
     sandbox_timeout: int = Field(
@@ -56,6 +60,10 @@ class AutodevSettings(BaseSettings):
     log_level: str = Field(
         "INFO",
         description="Global logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
+    )
+    save_run_logs: bool = Field(
+        True,
+        description="Whether to persist structured run logs and conversation transcripts to disk",
     )
 
     @property

@@ -16,13 +16,22 @@ class WorkspaceToolKit:
         self.sandbox = sandbox
         self.workspace = workspace
 
-    def file_read(self, path: str) -> str:
+    def file_read(
+        self,
+        path: str,
+        start_line: int | None = None,
+        end_line: int | None = None,
+    ) -> str:
         """Reads the contents of a file at the given relative path from the repository root, with line numbers.
 
         Args:
             path: Relative path to the file (e.g. 'src/main.py').
+            start_line: Optional starting line number (1-indexed inclusive).
+            end_line: Optional ending line number (1-indexed inclusive).
         """
-        return file_ops.file_read(self.sandbox, self.workspace, path)
+        return file_ops.file_read(
+            self.sandbox, self.workspace, path, start_line=start_line, end_line=end_line
+        )
 
     def file_write(self, path: str, content: str) -> str:
         """Writes the entire content to a file at the given relative path. Creates directories if they do not exist.
@@ -105,3 +114,12 @@ class WorkspaceToolKit:
     def index_codebase(self) -> str:
         """Indexes all Python files in the repository and returns a JSON string mapping files to their AST symbols."""
         return codebase.index_codebase(self.sandbox, self.workspace)
+
+    def declare_transition(self, target_mode: str, summary: str = "") -> str:
+        """Signals that the current phase is completed and requests transitioning to the next mode.
+
+        Args:
+            target_mode: Target mode to transition to. Allowed: 'CODING' (from PLANNING), 'TESTING' (from CODING), 'DEBUGGING' (from TESTING/DEBUGGING), 'DONE' (when tests pass).
+            summary: Brief summary of what was accomplished in this phase or what plan is ready.
+        """
+        return f"TRANSITION_REQUESTED:{target_mode.upper().strip()}:{summary.strip()}"

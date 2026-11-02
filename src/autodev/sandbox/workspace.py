@@ -40,15 +40,25 @@ class WorkspaceManager:
         )
 
         try:
-            # 2. Clone repository
-            logger.info("Cloning repository inside sandbox...")
+            # 2. Clone repository (use shallow clone for performance)
+            logger.info("Cloning repository inside sandbox (shallow clone)...")
             if self.sandbox.use_docker:
-                clone_cmd = f"git clone {shlex.quote(repo_url)} {shlex.quote(workspace.repo_path)}"
+                clone_cmd = f"git clone --depth 1 {shlex.quote(repo_url)} {shlex.quote(workspace.repo_path)}"
             else:
-                clone_cmd = f'git clone "{repo_url}" "{workspace.repo_path}"'
+                clone_cmd = f'git clone --depth 1 "{repo_url}" "{workspace.repo_path}"'
             res = self.sandbox.exec_command(container_id, clone_cmd)
             if res.exit_code != 0:
-                raise RuntimeError(f"Failed to clone repository: {res.stderr}")
+                # Fallback to full clone if shallow clone fails on certain git servers
+                logger.warning(
+                    f"Shallow clone failed ({res.stderr}), falling back to full clone..."
+                )
+                if self.sandbox.use_docker:
+                    clone_cmd = f"git clone {shlex.quote(repo_url)} {shlex.quote(workspace.repo_path)}"
+                else:
+                    clone_cmd = f'git clone "{repo_url}" "{workspace.repo_path}"'
+                res = self.sandbox.exec_command(container_id, clone_cmd)
+                if res.exit_code != 0:
+                    raise RuntimeError(f"Failed to clone repository: {res.stderr}")
 
             # 2b. Configure Git exclusions to prevent committing python cache or temporary test files
             self._configure_git_exclude(workspace)

@@ -7,12 +7,13 @@ You have access to exploration and reading tools:
 - grep_search: Search text across files.
 - file_read: Inspect a file's contents with line numbers.
 - index_codebase: Extract a JSON of all classes, methods, and functions.
+- declare_transition: Signal that planning is finished and propose your plan to transition to CODING.
 
 Guidelines:
 1. First, search and explore the codebase to locate where the issue lies. Use index_codebase, grep_search, and file_read.
 2. Identify which files are responsible for the bug or feature request.
 3. Create a step-by-step plan. Detail EXACTLY what needs to change in which files.
-4. Once you have a clear plan, write out your final plan and declare that your plan is ready.
+4. Once you have a clear plan, write out your final plan under '### IMPLEMENTATION PLAN' or call declare_transition(target_mode='CODING', summary=your_plan).
 
 Your final output must contain a section:
 ### IMPLEMENTATION PLAN
@@ -28,6 +29,7 @@ You have access to modification and reading tools:
 - file_edit: Search and replace a unique block of code in a file.
 - git_diff: Check the differences you have introduced.
 - git_status: Check which files are modified.
+- declare_transition: Signal that coding is complete and transition to TESTING.
 
 CRITICAL GUIDELINES:
 1. The workspace is currently unmodified. You MUST call the tools `file_write` (to create new files) or `file_edit` (to edit existing files) to make the changes. Simply writing code blocks in your text response or thoughts does NOT write them to disk.
@@ -35,7 +37,7 @@ CRITICAL GUIDELINES:
 3. Always inspect a file using file_read before attempting to edit it with file_edit. This ensures you know the exact lines and spacing.
 4. Use file_write to create any new files needed. NEVER use file_write on existing files — always use file_edit to modify them. file_write will reject overwrites that reduce the file size by more than 50%.
 5. Use git_diff to verify your edits are correct.
-6. When and only when all edits are completed using the tools and you have verified them with git_diff, announce that coding is finished and you are ready for testing.
+6. When and only when all edits are completed using the tools and you have verified them with git_diff, declare that coding is finished and you are ready for testing (or call declare_transition(target_mode='TESTING')).
 """
 
 TESTING_SYSTEM_PROMPT = """You are the TESTING AGENT.
@@ -45,13 +47,14 @@ You have access to testing tools:
 - shell_exec: Run shell commands (e.g. pytest).
 - file_read: Inspect files.
 - list_directory: List files.
+- declare_transition: Signal test outcome (target_mode='DONE' if passed, or 'DEBUGGING' if failed).
 
 CRITICAL GUIDELINES:
 1. Check the repository for existing tests (e.g., look for a `tests/` directory or files starting with `test_`).
 2. You MUST run the tests using `shell_exec` (e.g., `pytest`, `pytest tests/test_module.py`, or `python -m unittest`). Reading test files or declaring success in text without executing them is NOT allowed.
 3. If no tests exist, note which tests should be created and transition to debugging so they can be written.
 4. Observe the exit code and outputs.
-5. When and only when you have run the tests via shell_exec and they pass, announce that all tests have successfully passed!
+5. When and only when you have run the tests via shell_exec and they pass, announce that all tests have successfully passed (or call declare_transition(target_mode='DONE'))!
 6. If the tests fail, explain the failure and transition to debugging.
 """
 
@@ -64,6 +67,7 @@ You have access to editing and execution tools:
 - shell_exec: Run tests or diagnostic commands.
 - git_diff: Verify changes.
 - grep_search: Search text.
+- declare_transition: Signal that the fix is verified (target_mode='DONE') or cannot be resolved (target_mode='FAILED').
 
 CRITICAL GUIDELINES:
 1. Carefully inspect the stdout and stderr error logs of the failed test run.

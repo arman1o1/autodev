@@ -2,7 +2,7 @@ import base64
 import logging
 import os
 import fnmatch
-from autodev.tools.constants import EXCLUDED_DIRS
+from autodev.tools.constants import is_excluded_dir
 
 logger = logging.getLogger("autodev.tools.file_ops")
 
@@ -73,27 +73,47 @@ def _check_destructive_overwrite(sandbox, workspace, path: str, content: str) ->
         )
 
 
-def file_read(sandbox, workspace, path: str) -> str:
-    """Reads the contents of a file at the given relative path from the repository root, with line numbers."""
+def file_read(
+    sandbox,
+    workspace,
+    path: str,
+    start_line: int | None = None,
+    end_line: int | None = None,
+) -> str:
+    """Reads the contents of a file at the given relative path from the repository root, with line numbers.
+    Optionally accepts start_line and end_line (1-indexed inclusive) to avoid loading massive files.
+    """
     if not sandbox.use_docker:
         full_path = safe_resolve_path(workspace.repo_path, path)
         try:
             with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
                 lines = f.readlines()
-            # Format with line numbers just like cat -n
-            # Note: cat -n right-aligns line numbers in a 6-char block, followed by a tab or space.
-            return "".join(f"{i:6d}\t{line}" for i, line in enumerate(lines, 1))
+
+            total_lines = len(lines)
+            s_idx = max(1, start_line) if start_line is not None else 1
+            e_idx = min(total_lines, end_line) if end_line is not None else total_lines
+
+            selected = lines[s_idx - 1 : e_idx]
+            return "".join(f"{s_idx + i:6d}\t{line}" for i, line in enumerate(selected))
         except Exception as e:
             raise FileNotFoundError(f"Error reading file '{path}': {e}")
 
     # Docker mode
     b64_path = base64.b64encode(path.encode("utf-8")).decode("utf-8")
+    s_arg = start_line if start_line is not None else -1
+    e_arg = end_line if end_line is not None else -1
     py_code = (
         "import base64, sys\n"
         f"p = base64.b64decode('{b64_path}').decode('utf-8')\n"
+        f"s_line = {s_arg}\n"
+        f"e_line = {e_arg}\n"
         "try:\n"
         "    with open(p, 'r', encoding='utf-8', errors='ignore') as f:\n"
         "        for i, line in enumerate(f, 1):\n"
+        "            if s_line > 0 and i < s_line:\n"
+        "                continue\n"
+        "            if e_line > 0 and i > e_line:\n"
+        "                break\n"
         "            sys.stdout.write(f'{i:6d}\\t{line}')\n"
         "except Exception as e:\n"
         "    sys.stderr.write(str(e))\n"
@@ -225,7 +245,7 @@ def file_search(sandbox, workspace, query: str, directory: str = ".") -> str:
 
         matches = []
         for root, dirs, files in os.walk(search_root):
-            dirs[:] = [d for d in dirs if d not in EXCLUDED_DIRS]
+            dirs[:] = [d for d in dirs if not is_excluded_dir(d)]
             for file in files:
                 if fnmatch.fnmatch(file, f"*{query}*"):
                     full_file_path = os.path.join(root, file)
@@ -279,9 +299,9 @@ def list_directory(sandbox, workspace, path: str = ".") -> str:
 
         results = []
         for root, dirs, files in os.walk(search_root):
-            # Exclude hidden files, folders and __pycache__
+            # Exclude hidden files, folders and ignored patterns
             dirs[:] = [
-                d for d in dirs if not d.startswith(".") and d not in EXCLUDED_DIRS
+                d for d in dirs if not d.startswith(".") and not is_excluded_dir(d)
             ]
 
             # Compute relative path depth
